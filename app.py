@@ -1,5 +1,10 @@
 import streamlit as st
 import pandas as pd
+try:
+    from streamlit_plotly_events import plotly_events
+    HAS_EVENTS = True
+except ImportError:
+    HAS_EVENTS = False
 import plotly.express as px
 import plotly.graph_objects as go
 import gspread
@@ -216,7 +221,7 @@ def normalizar_col(col):
 
 
 CMAP = {
-    "uf":       ["ufmatricula", "uf"],
+    "uf":       ["ufmatricula", "ufendereco", "uf"],
     "crm":      ["matricula", "crm"],
     "nome":     ["medico", "nutricionista", "nome", "profissional"],
     "seg":      ["segmentacao", "seg"],
@@ -290,11 +295,11 @@ def processar_df(df, is_nutri=False):
             "consulta": num(row, 'consulta'),
             "pacientes":num(row, 'pacientes'),
             "local":    get(row, 'local'),
-            "temTel":   bool(get(row, 'temTel')),
-            "temCell":  bool(get(row, 'temCell')),
-            "temEmail": bool(get(row, 'temEmail')),
-            "temEnd":   bool(get(row, 'temEnd')),
-            "temInsta": bool(get(row, 'temInsta')),
+            "temTel":   bool(get(row, 'temTel') not in ['', 'nan', 'none', 'NaN']),
+            "temCell":  bool(get(row, 'temCell') not in ['', 'nan', 'none', 'NaN']),
+            "temEmail": bool(get(row, 'temEmail') not in ['', 'nan', 'none', 'NaN']),
+            "temEnd":   bool(get(row, 'temEnd') not in ['', 'nan', 'none', 'NaN']),
+            "temInsta": bool(get(row, 'temInsta') not in ['', 'nan', 'none', 'NaN']),
         })
     return pd.DataFrame(rows), c
 
@@ -403,6 +408,18 @@ def plotly_donut(labels, values, cores):
     return fig
 
 
+# ===================== CHART CLICÁVEL =====================
+def chart_clicavel(fig, key, altura=None):
+    """Renderiza chart com clique se streamlit-plotly-events disponível."""
+    if altura:
+        fig.update_layout(height=altura)
+    if HAS_EVENTS:
+        clicked = plotly_events(fig, click_event=True, key=key, override_height=fig.layout.height or 300)
+        return clicked[0]['y'] if clicked else None
+    else:
+        st.plotly_chart(fig, width='stretch')
+        return None
+
 # ===================== APP PRINCIPAL =====================
 def main():
     # Header
@@ -425,11 +442,17 @@ def main():
     # ===================== SIDEBAR — Configuração =====================
     with st.sidebar:
         st.markdown("### ⚙️ Configuração")
+        # Persistir URL via query params — mantém ao compartilhar link
+        params = st.query_params
+        default_url = params.get("sheet", "")
         sheet_url = st.text_input(
             "URL da Google Sheets",
+            value=default_url,
             placeholder="https://docs.google.com/spreadsheets/d/...",
             help="A planilha deve estar compartilhada como 'qualquer pessoa com o link pode ver'"
         )
+        if sheet_url and sheet_url != default_url:
+            st.query_params["sheet"] = sheet_url
         aba_med  = st.text_input("Nome da aba — Médicos", value="Medicos")
         aba_nut  = st.text_input("Nome da aba — Nutricionistas", value="Nutricionistas")
 
@@ -614,13 +637,16 @@ def main():
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">Top Especialidades</div>', unsafe_allow_html=True)
         esp_cnt = {}
-        f['esp1'].dropna().apply(lambda x: esp_cnt.update({x: esp_cnt.get(x, 0) + 1}))
-        f['esp2'].dropna().apply(lambda x: esp_cnt.update({x: esp_cnt.get(x, 0) + 1}))
+        f['esp1'].dropna().apply(lambda x: esp_cnt.update({x: esp_cnt.get(x, 0) + 1}) if str(x).strip() not in ['', 'nan', 'None'] else None)
+        f['esp2'].dropna().apply(lambda x: esp_cnt.update({x: esp_cnt.get(x, 0) + 1}) if str(x).strip() not in ['', 'nan', 'None'] else None)
         top_esp = sorted(esp_cnt.items(), key=lambda x: x[1], reverse=True)[:10]
         if top_esp:
             labels_e = [x[0] for x in top_esp]
             values_e = [x[1] for x in top_esp]
-            st.plotly_chart(plotly_bar_h(labels_e, values_e, esp_sel or None, CO, CP2), width='stretch')
+            clicked_esp = chart_clicavel(plotly_bar_h(labels_e, values_e, esp_sel or None, CO, CP2), key="chart_esp")
+            if clicked_esp and clicked_esp not in esp_sel:
+                esp_sel.append(clicked_esp)
+                st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_uf:
@@ -628,10 +654,13 @@ def main():
         st.markdown('<div class="section-title">HCPs por UF</div>', unsafe_allow_html=True)
         uf_cnt = f[f['uf'].notna() & (f['uf'].str.len() == 2)]['uf'].value_counts().head(12)
         if len(uf_cnt) > 0:
-            st.plotly_chart(
+            clicked_uf = chart_clicavel(
                 plotly_bar_v(uf_cnt.index.tolist(), uf_cnt.values.tolist(), None, CO, CP),
-                width='stretch'
+                key="chart_uf"
             )
+            if clicked_uf and clicked_uf not in uf_sel:
+                uf_sel.append(clicked_uf)
+                st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ===================== LOCAL + CIDADE =====================
@@ -656,10 +685,13 @@ def main():
         st.markdown('<div class="section-title">Top Cidades</div>', unsafe_allow_html=True)
         cid_cnt = f[f['cidade'].notna()]['cidade'].value_counts().head(10)
         if len(cid_cnt) > 0:
-            st.plotly_chart(
+            clicked_cid = chart_clicavel(
                 plotly_bar_h(cid_cnt.index.tolist(), cid_cnt.values.tolist(), cidade_sel or None, CO, CB),
-                width='stretch'
+                key="chart_cidade"
             )
+            if clicked_cid and clicked_cid not in cidade_sel:
+                cidade_sel.append(clicked_cid)
+                st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ===================== COMPLETUDE + SEGUIDORES =====================

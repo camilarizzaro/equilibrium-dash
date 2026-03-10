@@ -344,9 +344,16 @@ def fmt_r(n):
     except: return "—"
 
 
+
+def hex_alpha(hex_color, alpha=0.53):
+    """Converte hex color para rgba com transparência — Plotly 6 não aceita hex+88."""
+    h = hex_color.lstrip('#')
+    r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+    return f"rgba({r},{g},{b},{alpha})"
+
 def plotly_bar_h(labels, values, selected=None, cor_sel=CO, cor_base=CP2):
     sel = selected if selected else []
-    colors = [cor_sel if l in sel else cor_base + "88" for l in labels]
+    colors = [cor_sel if l in sel else hex_alpha(cor_base) for l in labels]
     fig = go.Figure(go.Bar(
         x=values, y=labels, orientation='h',
         marker_color=colors, marker_line_color=[cor_sel if l in sel else cor_base for l in labels],
@@ -364,7 +371,7 @@ def plotly_bar_h(labels, values, selected=None, cor_sel=CO, cor_base=CP2):
 
 
 def plotly_bar_v(labels, values, selected=None, cor_sel=CO, cor_base=CP):
-    colors = [cor_sel if (selected is not None and i == selected) else cor_base + "88" for i, _ in enumerate(labels)]
+    colors = [cor_sel if (selected is not None and i == selected) else hex_alpha(cor_base) for i, _ in enumerate(labels)]
     fig = go.Figure(go.Bar(
         x=labels, y=values, orientation='v',
         marker_color=colors, marker_line_color=cor_base,
@@ -574,7 +581,7 @@ def main():
             labels = ["KOL", "KOF", "HCP", "Sem"]
             values = [len(f[f['seg'] == k]) for k in ['KOL', 'KOF', 'HCP', '']]
             cores  = [CO, CP2, CG, "#ccc"]
-        st.plotly_chart(plotly_donut(labels, values, cores), use_container_width=True)
+        st.plotly_chart(plotly_donut(labels, values, cores), width='stretch')
 
     # Seg Prescrição (só nutri)
     if is_nutri:
@@ -596,7 +603,7 @@ def main():
         with col_p2:
             labels_p = ["Tier 1", "Tier 2", "Tier 3", "Sem"]
             values_p = [len(f[f['segPresc'] == k]) for k in ['HCP Tier 1', 'HCP Tier 2', 'HCP Tier 3', '']]
-            st.plotly_chart(plotly_donut(labels_p, values_p, [CO, CB, CG, "#ccc"]), use_container_width=True)
+            st.plotly_chart(plotly_donut(labels_p, values_p, [CO, CB, CG, "#ccc"]), width='stretch')
 
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
@@ -613,7 +620,7 @@ def main():
         if top_esp:
             labels_e = [x[0] for x in top_esp]
             values_e = [x[1] for x in top_esp]
-            st.plotly_chart(plotly_bar_h(labels_e, values_e, esp_sel or None, CO, CP2), use_container_width=True)
+            st.plotly_chart(plotly_bar_h(labels_e, values_e, esp_sel or None, CO, CP2), width='stretch')
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_uf:
@@ -623,7 +630,7 @@ def main():
         if len(uf_cnt) > 0:
             st.plotly_chart(
                 plotly_bar_v(uf_cnt.index.tolist(), uf_cnt.values.tolist(), None, CO, CP),
-                use_container_width=True
+                width='stretch'
             )
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -640,7 +647,7 @@ def main():
             st.plotly_chart(
                 plotly_donut([x[0] for x in top_loc], [x[1] for x in top_loc],
                              [CP, CO, CP2, CO2, CG, CB, "#9333EA", "#CA8A04"][:len(top_loc)]),
-                use_container_width=True
+                width='stretch'
             )
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -651,7 +658,7 @@ def main():
         if len(cid_cnt) > 0:
             st.plotly_chart(
                 plotly_bar_h(cid_cnt.index.tolist(), cid_cnt.values.tolist(), cidade_sel or None, CO, CB),
-                use_container_width=True
+                width='stretch'
             )
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -688,7 +695,7 @@ def main():
         fx_values = [len(f[(f['nseg'] >= fx[1]) & (f['nseg'] <= fx[2])]) for fx in faixas]
         fig_fx = go.Figure(go.Bar(
             x=fx_labels, y=fx_values,
-            marker_color=CO + "88", marker_line_color=CO, marker_line_width=2
+            marker_color=hex_alpha(CO), marker_line_color=CO, marker_line_width=2
         ))
         fig_fx.update_layout(
             margin=dict(l=0, r=10, t=5, b=5),
@@ -697,7 +704,7 @@ def main():
             yaxis=dict(showgrid=True, gridcolor="#E2DCF0", tickfont=dict(color="#7A6FA0", size=11)),
             height=220, showlegend=False,
         )
-        st.plotly_chart(fig_fx, use_container_width=True)
+        st.plotly_chart(fig_fx, width='stretch')
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ===================== TABELA =====================
@@ -723,7 +730,7 @@ def main():
               'esp1': 'Especialidade', 'local': 'Local'}
     st.dataframe(
         top15[cols_show].rename(columns=rename),
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
     )
 

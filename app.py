@@ -345,10 +345,11 @@ def fmt_r(n):
 
 
 def plotly_bar_h(labels, values, selected=None, cor_sel=CO, cor_base=CP2):
-    colors = [cor_sel if (selected and l in selected) else cor_base + "88" for l in labels]
+    sel = selected if selected else []
+    colors = [cor_sel if l in sel else cor_base + "88" for l in labels]
     fig = go.Figure(go.Bar(
         x=values, y=labels, orientation='h',
-        marker_color=colors, marker_line_color=[cor_sel if (selected and l in selected) else cor_base for l in labels],
+        marker_color=colors, marker_line_color=[cor_sel if l in sel else cor_base for l in labels],
         marker_line_width=2
     ))
     fig.update_layout(
